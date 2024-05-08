@@ -2,7 +2,7 @@ import { SceneTreeProvider } from "./scene_tree_provider";
 import path = require("path");
 import { createLogger } from "../utils";
 
-const log = createLogger("debugger.runtime");
+const log = createLogger("debugger.runtime", { output: "Godot Debugger" });
 
 export interface GodotBreakpoint {
 	file: string;
@@ -109,8 +109,8 @@ export class GodotDebugData {
 		bps.push(bp);
 
 		if (this.projectPath) {
-			const out_file = `res://${path.relative(this.projectPath, bp.file)}`;
-			this.session?.controller.set_breakpoint(out_file.replace(/\\/g, "/"), line);
+			const out_file = this.get_breakpoint_res_path(bp.file);
+			this.session?.controller.set_breakpoint(out_file, line);
 		}
 	}
 
@@ -125,9 +125,9 @@ export class GodotDebugData {
 				const bp = bps[index];
 				bps.splice(index, 1);
 				this.breakpoints.set(pathTo, bps);
-				const file = `res://${path.relative(this.projectPath, bp.file)}`;
+				const resPath = this.get_breakpoint_res_path(bp.file);
 				this.session?.controller.remove_breakpoint(
-					file.replace(/\\/g, "/"),
+					resPath,
 					bp.line,
 				);
 			}
@@ -152,7 +152,7 @@ export class GodotDebugData {
 		if (breakpoints.length > 0) {
 			output += " --breakpoints \"";
 			breakpoints.forEach((bp, i) => {
-				output += `${this.get_breakpoint_path(bp.file)}:${bp.line}`;
+				output += `${this.get_breakpoint_res_path(bp.file)}:${bp.line}`;
 				if (i < breakpoints.length - 1) {
 					output += ",";
 				}
@@ -162,8 +162,12 @@ export class GodotDebugData {
 		return output;
 	}
 
-	public get_breakpoint_path(file: string) {
-		const relativePath = path.relative(this.projectPath, file).replace(/\\/g, "/");
+	public get_breakpoint_res_path(file: string) {
+		// Need to relativize on project_dir_path this instead of on the this.projectPath
+		// path.relative works purely on path strings so if given the project file path, will consider the project file segment as a directory
+		const project_dir_path = path.dirname(this.projectPath);
+		const relativePath = path.relative(project_dir_path, file).replace(/\\/g, "/");
+		log.info(`Relativizing path at "${file}" to "${project_dir_path}": "${relativePath}"`);
 		if (relativePath.length !== 0) {
 			return `res://${relativePath}`;
 		}
